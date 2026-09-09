@@ -31,6 +31,23 @@ aliases:
   - test-doc
   - sample-md
   - diff-playground
+platforms: [ios, android]
+external_partners:
+  - name: Massive Rocket
+    role: CRM agency; Braze journey build and QA
+tooling:
+  - braze: dedicated institutional workspace, isolated from B2C
+verification:
+  method: manual-attestation
+  targets:
+    - braze: institutional workspace / canvases
+    - gsheet: "1Pe_jZkGlduQW56cTBZWlwtm7cqkRVPXX-c-Gyqafsck"
+related:
+  depends_on: [repetition-learning-unit, end-of-lesson-screens]
+  see_also: [native-review-prompt, leaderboard]
+mixed:
+  - scalar-chip
+  - nested_key: nested value
 ---
 
 # Heading 1 — round six

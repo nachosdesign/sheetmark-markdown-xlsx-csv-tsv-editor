@@ -127,6 +127,116 @@ test('buildFieldRows: circular YAML anchor/alias does not throw', () => {
     assert.ok(rows.some((row) => row.key === 'a'));
 });
 
+function assertNoObjectObjectChips(rows: ReturnType<typeof buildFieldRows>): void {
+    assert.ok(!rows.some((row) => row.chips?.some((chip) => chip.includes('[object Object]'))));
+}
+
+test('buildFieldRows: array of multi-key objects expands indented rows', () => {
+    const yamlText = 'external_partners:\n  - name: Massive Rocket\n    role: CRM agency';
+    const parsed = parseFrontmatter(yamlText);
+    assert.ok(parsed);
+    const rows = buildFieldRows(parsed);
+    assert.ok(rows.some((row) => row.key === 'external_partners' && row.kind === 'object'));
+    const name = rows.find((row) => row.key === 'name');
+    const role = rows.find((row) => row.key === 'role');
+    assert.ok(name);
+    assert.equal(name.kind, 'scalar');
+    assert.equal(name.depth, 1);
+    assert.equal(name.displayValue, 'Massive Rocket');
+    assert.ok(role);
+    assert.equal(role.displayValue, 'CRM agency');
+    assertNoObjectObjectChips(rows);
+});
+
+test('buildFieldRows: array of single-key objects expands rows', () => {
+    const yamlText = 'tooling:\n  - braze: dedicated workspace';
+    const parsed = parseFrontmatter(yamlText);
+    assert.ok(parsed);
+    const rows = buildFieldRows(parsed);
+    assert.ok(rows.some((row) => row.key === 'tooling' && row.kind === 'object'));
+    const braze = rows.find((row) => row.key === 'braze');
+    assert.ok(braze);
+    assert.equal(braze.kind, 'scalar');
+    assert.equal(braze.depth, 1);
+    assert.equal(braze.displayValue, 'dedicated workspace');
+    assertNoObjectObjectChips(rows);
+});
+
+test('buildFieldRows: multiple single-key objects get index prefix on first key', () => {
+    const yamlText = 'targets:\n  - braze: canvas a\n  - gsheet: sheet-id';
+    const parsed = parseFrontmatter(yamlText);
+    assert.ok(parsed);
+    const rows = buildFieldRows(parsed);
+    assert.ok(rows.some((row) => row.key === '[1] braze' && row.displayValue === 'canvas a'));
+    assert.ok(rows.some((row) => row.key === '[2] gsheet' && row.displayValue === 'sheet-id'));
+    assertNoObjectObjectChips(rows);
+});
+
+test('buildFieldRows: scalar string arrays still render as chips', () => {
+    const yamlText = 'platforms:\n  - ios\n  - android';
+    const parsed = parseFrontmatter(yamlText);
+    assert.ok(parsed);
+    const rows = buildFieldRows(parsed);
+    const platforms = rows.find((row) => row.key === 'platforms');
+    assert.ok(platforms);
+    assert.equal(platforms.kind, 'array');
+    assert.deepEqual(platforms.chips, ['ios', 'android']);
+});
+
+test('buildFieldRows: nested string arrays under object maps unchanged', () => {
+    const yamlText = 'related:\n  depends_on:\n    - alpha\n    - beta';
+    const parsed = parseFrontmatter(yamlText);
+    assert.ok(parsed);
+    const rows = buildFieldRows(parsed);
+    assert.ok(rows.some((row) => row.key === 'related' && row.kind === 'object'));
+    const dependsOn = rows.find((row) => row.key === 'depends_on');
+    assert.ok(dependsOn);
+    assert.equal(dependsOn.kind, 'array');
+    assert.deepEqual(dependsOn.chips, ['alpha', 'beta']);
+});
+
+test('buildFieldRows: mixed scalar and object array shows chips and expanded rows', () => {
+    const yamlText = 'mixed:\n  - foo\n  - bar: baz';
+    const parsed = parseFrontmatter(yamlText);
+    assert.ok(parsed);
+    const rows = buildFieldRows(parsed);
+    assert.ok(rows.some((row) => row.key === 'mixed' && row.kind === 'object'));
+    assert.ok(rows.some((row) => row.key === '' && row.kind === 'array' && row.chips?.includes('foo')));
+    assert.ok(rows.some((row) => row.key === 'bar' && row.displayValue === 'baz'));
+    assertNoObjectObjectChips(rows);
+});
+
+test('buildFieldRows: push-notifications frontmatter shapes', () => {
+    const yamlText = [
+        'id: push-notifications',
+        'platforms: [ios, android]',
+        'external_partners:',
+        '  - name: Massive Rocket',
+        '    role: CRM agency',
+        'tooling:',
+        '  - braze: dedicated institutional workspace',
+        'verification:',
+        '  method: manual-attestation',
+        '  targets:',
+        '    - braze: institutional workspace / canvases',
+        '    - gsheet: sheet-id',
+        'related:',
+        '  depends_on: [repetition-learning-unit, end-of-lesson-screens]',
+    ].join('\n');
+    const parsed = parseFrontmatter(yamlText);
+    assert.ok(parsed);
+    const rows = buildFieldRows(parsed);
+    assert.ok(rows.some((row) => row.key === 'platforms' && row.chips?.join(',') === 'ios,android'));
+    assert.ok(rows.some((row) => row.key === 'name' && row.displayValue === 'Massive Rocket'));
+    assert.ok(rows.some((row) => row.key === 'braze' && row.displayValue === 'dedicated institutional workspace'));
+    assert.ok(rows.some((row) => row.key === '[1] braze' && row.displayValue === 'institutional workspace / canvases'));
+    assert.ok(rows.some((row) => row.key === '[2] gsheet' && row.displayValue === 'sheet-id'));
+    const dependsOn = rows.find((row) => row.key === 'depends_on');
+    assert.ok(dependsOn);
+    assert.equal(dependsOn.kind, 'array');
+    assertNoObjectObjectChips(rows);
+});
+
 test('resolveFrontmatterWidgetData: circular YAML does not throw', () => {
     const raw = '---\na: &x\n  b: *x\n---\nbody';
     let data: ReturnType<typeof resolveFrontmatterWidgetData>;

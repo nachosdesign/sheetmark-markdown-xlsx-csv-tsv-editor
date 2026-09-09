@@ -68,6 +68,19 @@ function formatScalar(value: unknown): string {
     return String(value);
 }
 
+function isScalarItem(value: unknown): boolean {
+    return value === null
+        || value === undefined
+        || typeof value === 'boolean'
+        || typeof value === 'number'
+        || typeof value === 'string'
+        || value instanceof Date;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date);
+}
+
 function flattenFieldRows(
     value: unknown,
     key: string,
@@ -82,15 +95,66 @@ function flattenFieldRows(
     }
 
     if (Array.isArray(value)) {
-        const chips = value.map((item) => formatScalar(item)).filter((item) => item.length > 0);
+        if (value.every(isScalarItem)) {
+            const chips = value.map((item) => formatScalar(item)).filter((item) => item.length > 0);
+            rows.push({
+                key,
+                keyPath,
+                displayValue: chips.join(', '),
+                kind: 'array',
+                depth,
+                chips,
+            });
+            return;
+        }
+
         rows.push({
             key,
             keyPath,
-            displayValue: chips.join(', '),
-            kind: 'array',
+            displayValue: '',
+            kind: 'object',
             depth,
-            chips,
         });
+
+        const scalarItems = value.filter(isScalarItem);
+        if (scalarItems.length > 0) {
+            const chips = scalarItems.map((item) => formatScalar(item)).filter((item) => item.length > 0);
+            if (chips.length > 0) {
+                rows.push({
+                    key: '',
+                    keyPath,
+                    displayValue: chips.join(', '),
+                    kind: 'array',
+                    depth: depth + 1,
+                    chips,
+                });
+            }
+        }
+
+        const objectItems = value.filter(isPlainObject);
+        let objectIndex = 0;
+        for (const item of value) {
+            if (isPlainObject(item)) {
+                objectIndex++;
+                const entries = Object.entries(item);
+                entries.forEach(([childKey, childValue], entryIndex) => {
+                    const displayKey = objectItems.length > 1 && entryIndex === 0
+                        ? `[${objectIndex}] ${childKey}`
+                        : childKey;
+                    flattenFieldRows(
+                        childValue,
+                        displayKey,
+                        [...keyPath, String(objectIndex - 1), childKey],
+                        depth + 1,
+                        rows,
+                        visited,
+                        maxDepth,
+                    );
+                });
+            } else if (Array.isArray(item)) {
+                flattenFieldRows(item, '', keyPath, depth + 1, rows, visited, maxDepth);
+            }
+        }
         return;
     }
 

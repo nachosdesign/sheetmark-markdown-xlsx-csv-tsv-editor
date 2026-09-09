@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- YAML frontmatter: lists of objects (e.g. `{ name, role }` entries) now expand as indented rows instead of showing `[object Object]` pills; string-only lists still render as chips.
+
 ## v1.5.0 — 2026-09-05
 
 ### Improvements
